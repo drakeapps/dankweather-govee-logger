@@ -1,0 +1,14 @@
+Source: dankweather-govee-monitor
+Section: utils
+Priority: optional
+Maintainer: James Wilson <james@drakeapps.com>
+Build-Depends: debhelper-compat (= 13), dh-python
+Standards-Version: 4.6.2
+
+Package: dankweather-govee-monitor
+Architecture: all
+Depends: ${misc:Depends}, ${python3:Depends}, python3-requests, goveebttemplogger
+Description: DankWeather Govee Log Monitor
+  A background service that monitors log files created by the
+  GoveeBTTempLogger service and uploads new sensor data to the
+  DankWeather API.

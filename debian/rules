@@ -1,0 +1,10 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@ --with python3,systemd
+
+override_dh_install:
+	# Install the script and rename it to the package name
+	dh_install govee_monitor.py usr/bin/
+	mv debian/dankweather-govee-monitor/usr/bin/govee_monitor.py debian/dankweather-govee-monitor/usr/bin/dankweather-govee-monitor
+	chmod +x debian/dankweather-govee-monitor/usr/bin/dankweather-govee-monitor
