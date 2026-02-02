@@ -28,7 +28,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          coverage run -m unittest test_govee_monitor.py
+          coverage run --omit=test_govee_monitor.py -m unittest test_govee_monitor.py
 
       - name: Check coverage threshold
         # Fails the workflow if coverage is less than 95%
