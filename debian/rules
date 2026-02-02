@@ -7,3 +7,6 @@ override_dh_install:
 	dh_install govee_monitor.py usr/bin/
 	mv debian/dankweather-govee-monitor/usr/bin/govee_monitor.py debian/dankweather-govee-monitor/usr/bin/dankweather-govee-monitor
 	chmod +x debian/dankweather-govee-monitor/usr/bin/dankweather-govee-monitor
+
+override_dh_builddeb:
+  dh_builddeb -- -Zxz
