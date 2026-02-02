@@ -60,7 +60,7 @@ def send_to_api(sensor_id, line):
 # --- File Follower Logic ---
 def get_current_filename(sensor_id):
     """Generates the filename expected for the current month."""
-    now = datetime.now()
+    now = datetime.utcnow()
     # Template: gvh-{SENSOR_ID}-{YYYY}-{MM}.txt
     return os.path.join(LOG_DIR, f"gvh-{sensor_id}-{now.year}-{now.month:02d}.txt")
 
