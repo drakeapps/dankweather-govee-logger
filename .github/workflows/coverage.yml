@@ -1,0 +1,36 @@
+name: Coverage
+
+on:
+  push:
+    branches: ["master"]
+  pull_request:
+    branches: ["master"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install coverage
+
+      - name: Run tests with coverage
+        run: |
+          coverage run --omit=test_govee_monitor.py -m unittest test_govee_monitor.py
+
+      - name: Check coverage threshold
+        # Fails the workflow if coverage is less than 90%
+        run: |
+          coverage report -m --fail-under=90

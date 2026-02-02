@@ -7,145 +7,169 @@ import requests
 import threading
 from datetime import datetime
 
-# --- Configuration ---
-LOG_DIR = "/var/log/goveebttemplogger/"
-API_URL = "https://api.dankweather.com/log"
-USERNAME = "admin"  # Set your default username here or leave empty
-CHECK_INTERVAL = 1.0  # How often to check for new lines (seconds)
-SCAN_INTERVAL = 60.0  # How often to check for NEW sensors (seconds)
 
-# --- API Sender ---
-def send_to_api(sensor_id, line):
-    """Parses the log line and sends it to the API."""
-    try:
-        # Split by whitespace (handles both tabs and spaces robustly)
-        # Structure: Date Time Temp Humidity Battery
+class GoveeMonitor:
+    def __init__(self, log_dir, api_url, username="admin"):
+        self.log_dir = log_dir
+        self.api_url = api_url
+        self.username = username
+        self.check_interval = 1.0  # Sleep at end of loop
+        self.retry_interval = 1.0  # Sleep on error/missing file
+        self.scan_interval = 60.0
+        self.stop_event = threading.Event()
+        self.monitored_sensors = set()
+
+    def parse_line(self, line):
+        """Parses a log line into a dictionary. Returns None if invalid."""
         parts = line.strip().split()
-        
         if len(parts) < 5:
-            return # Skip malformed lines
+            return None
 
-        date_str = parts[0]
-        time_str = parts[1]
-        temperature = parts[2]
-        humidity = parts[3]
-        battery = parts[4]
-
-        payload = {
-            "id": sensor_id,
-            "user": USERNAME,
-            "datetime": f"{date_str} {time_str}",
-            "temperature": temperature,
-            "humidity": humidity,
-            "battery": battery
+        return {
+            "date": parts[0],
+            "time": parts[1],
+            "temperature": parts[2],
+            "humidity": parts[3],
+            "battery": parts[4],
         }
 
-        # Send request with timeout
-        response = requests.post(
-            API_URL, 
-            json=payload, 
-            timeout=5,
-            headers={"Content-Type": "application/json"}
-        )
-        
-        # Check for HTTP errors
-        if response.status_code != 200:
-            print(f"[!] Error sending {sensor_id}: {response.status_code} - {response.text}")
-        else:
-            print(f"[+] Sent {sensor_id}: {payload['datetime']}")
+    def send_record(self, sensor_id, record):
+        """Sends a parsed record to the API."""
+        payload = {
+            "id": sensor_id,
+            "user": self.username,
+            "datetime": f"{record['date']} {record['time']}",
+            "temperature": record["temperature"],
+            "humidity": record["humidity"],
+            "battery": record["battery"],
+        }
 
-    except Exception as e:
-        print(f"[!] Exception sending data for {sensor_id}: {e}")
-
-# --- File Follower Logic ---
-def get_current_filename(sensor_id):
-    """Generates the filename expected for the current month."""
-    now = datetime.utcnow()
-    # Template: gvh-{SENSOR_ID}-{YYYY}-{MM}.txt
-    return os.path.join(LOG_DIR, f"gvh-{sensor_id}-{now.year}-{now.month:02d}.txt")
-
-def monitor_sensor(sensor_id):
-    """
-    Thread worker that tails the log file for a specific sensor.
-    Handles month rollover automatically.
-    """
-    print(f"[*] Started monitoring thread for: {sensor_id}")
-    
-    current_file_path = get_current_filename(sensor_id)
-    current_file = None
-
-    while True:
-        # 1. Ensure file is open
-        if current_file is None:
-            if os.path.exists(current_file_path):
-                try:
-                    current_file = open(current_file_path, 'r')
-                    # Seek to end (Tail behavior - only new data)
-                    current_file.seek(0, 2) 
-                    print(f"[*] Tailing: {current_file_path}")
-                except Exception as e:
-                    print(f"[!] Error opening {current_file_path}: {e}")
-                    time.sleep(5)
-                    continue
+        try:
+            response = requests.post(
+                self.api_url,
+                json=payload,
+                timeout=5,
+                headers={"Content-Type": "application/json"},
+            )
+            if response.status_code != 200:
+                print(
+                    f"[!] Error sending {sensor_id}: {response.status_code} - {response.text}"
+                )
+                return False
             else:
-                # File doesn't exist yet (maybe new month just started and no logs yet)
-                time.sleep(10)
-                # Re-check what the current file SHOULD be (in case month changed while waiting)
-                current_file_path = get_current_filename(sensor_id)
+                print(f"[+] Sent {sensor_id}: {payload['datetime']}")
+                return True
+        except Exception as e:
+            print(f"[!] Exception sending data for {sensor_id}: {e}")
+            return False
+
+    def get_log_filename(self, sensor_id, now=None):
+        """Generates the expected filename. 'now' can be injected for testing."""
+        if now is None:
+            now = datetime.utcnow()
+        return os.path.join(
+            self.log_dir, f"gvh-{sensor_id}-{now.year}-{now.month:02d}.txt"
+        )
+
+    def monitor_loop(self, sensor_id):
+        """Worker thread logic for a single sensor."""
+        print(f"[*] Started monitoring thread for: {sensor_id}")
+
+        current_file_path = self.get_log_filename(sensor_id)
+        current_file = None
+
+        while not self.stop_event.is_set():
+            # 1. Ensure file is open
+            if current_file is None:
+                if os.path.exists(current_file_path):
+                    try:
+                        current_file = open(current_file_path, "r")
+                        current_file.seek(0, 2)  # Tail
+                        print(f"[*] Tailing: {current_file_path}")
+                    except Exception as e:
+                        print(f"[!] Error opening {current_file_path}: {e}")
+                        time.sleep(self.retry_interval)
+                        continue
+                else:
+                    time.sleep(self.retry_interval)
+                    # Re-check filename in case of month rollover while waiting
+                    current_file_path = self.get_log_filename(sensor_id)
+                    continue
+
+            # 2. Read new lines
+            line = current_file.readline()
+            if line:
+                record = self.parse_line(line)
+                if record:
+                    self.send_record(sensor_id, record)
                 continue
 
-        # 2. Read new lines
-        line = current_file.readline()
-        if line:
-            send_to_api(sensor_id, line)
-            continue # Try to read another line immediately
+            # 3. Check for Rollover
+            expected_file_path = self.get_log_filename(sensor_id)
+            if expected_file_path != current_file_path:
+                if os.path.exists(expected_file_path):
+                    print(
+                        f"[*] Rollover detected: {current_file_path} -> {expected_file_path}"
+                    )
+                    current_file.close()
+                    current_file = None
+                    current_file_path = expected_file_path
+                    continue
 
-        # 3. No new lines? Check if we need to rotate files (Month Rollover)
-        expected_file_path = get_current_filename(sensor_id)
-        
-        if expected_file_path != current_file_path:
-            # The month has changed. 
-            # Check if the NEW file actually exists before switching.
-            if os.path.exists(expected_file_path):
-                print(f"[*] Rollover detected. Switching from {current_file_path} to {expected_file_path}")
-                current_file.close()
-                current_file = None
-                current_file_path = expected_file_path
-                continue
+            # 4. Sleep
+            time.sleep(self.check_interval)
 
-        # 4. Sleep briefly to reduce CPU usage
-        time.sleep(CHECK_INTERVAL)
+        # Cleanup on exit
+        if current_file:
+            current_file.close()
 
-# --- Main Discovery Loop ---
-def main():
-    print("--- Govee Log Monitor Started ---")
-    monitored_sensors = set()
+    def scan_sensors(self):
+        """Scans the directory for sensor files and returns a list of new sensor IDs."""
+        files = glob.glob(os.path.join(self.log_dir, "gvh-*.txt"))
+        new_sensors = []
 
-    while True:
-        # Find all files matching the pattern to discover Sensor IDs
-        # Pattern: gvh-{ID}-{YYYY}-{MM}.txt
-        files = glob.glob(os.path.join(LOG_DIR, "gvh-*.txt"))
-        
         for filepath in files:
             filename = os.path.basename(filepath)
-            # Regex to extract Sensor ID (assumes ID is between 'gvh-' and the date)
             match = re.match(r"gvh-(.+)-\d{4}-\d{2}\.txt", filename)
-            
+
             if match:
                 sensor_id = match.group(1)
-                
-                if sensor_id not in monitored_sensors:
-                    # Found a new sensor! Start a thread for it.
-                    monitored_sensors.add(sensor_id)
-                    t = threading.Thread(target=monitor_sensor, args=(sensor_id,), daemon=True)
-                    t.start()
-        
-        # Scan for new sensors occasionally
-        time.sleep(SCAN_INTERVAL)
+                if sensor_id not in self.monitored_sensors:
+                    new_sensors.append(sensor_id)
+        return new_sensors
+
+    def discovery_loop(self):
+        """Main loop that looks for new sensors."""
+        print("--- Govee Log Monitor Started ---")
+        while not self.stop_event.is_set():
+            new_sensors = self.scan_sensors()
+            for sensor_id in new_sensors:
+                self.monitored_sensors.add(sensor_id)
+                t = threading.Thread(
+                    target=self.monitor_loop, args=(sensor_id,), daemon=True
+                )
+                t.start()
+
+            time.sleep(self.scan_interval)
+
+    def start(self):
+        """Starts the discovery loop."""
+        try:
+            self.discovery_loop()
+        except KeyboardInterrupt:
+            self.stop()
+
+    def stop(self):
+        """Signals all threads to stop."""
+        self.stop_event.set()
+
 
 if __name__ == "__main__":
-    # Ensure requests is installed: pip install requests
-    main()
+    config = {
+        "log_dir": "/var/log/goveebttemplogger/",
+        "api_url": "https://api.dankweather.com/log",
+        "username": "admin",
+    }
 
-
-
+    monitor = GoveeMonitor(**config)
+    monitor.start()
