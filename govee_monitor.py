@@ -4,7 +4,6 @@ import os
 import time
 import glob
 import re
-import json
 import requests
 import threading
 from datetime import datetime
