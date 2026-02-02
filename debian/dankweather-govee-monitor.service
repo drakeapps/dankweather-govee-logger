@@ -1,0 +1,19 @@
+[Unit]
+Description=DankWeather Govee Log Monitor
+# Start only after the logger service we depend on is active
+After=network.target goveebttemplogger.service
+Requires=goveebttemplogger.service
+
+[Service]
+Type=simple
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/dankweather-govee-monitor
+Restart=always
+RestartSec=10
+
+# Run as an unprivileged user since logs are world-readable
+User=nobody
+Group=nogroup
+
+[Install]
+WantedBy=multi-user.target
