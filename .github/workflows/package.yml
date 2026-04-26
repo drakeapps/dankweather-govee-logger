@@ -19,6 +19,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential debhelper devscripts dh-python
 
+      - name: Set Package Version From Release Tag
+        env:
+          DEBEMAIL: ci@drakeapps.com
+          DEBFULLNAME: DankWeather CI
+        run: |
+          # The committed debian/changelog is just a starting point; the
+          # release tag is the source of truth for build-time versioning.
+          # Strip a leading "v" so tags like v0.2.0 and 0.2.0 both work.
+          TAG="${{ github.event.release.tag_name }}"
+          VERSION="${TAG#v}"
+          dch --newversion "${VERSION}-1" \
+              --distribution unstable \
+              --force-distribution \
+              "Release ${VERSION}"
+          head -1 debian/changelog
+
       - name: Build Package
         run: |
           # Build the package (unsigned source and changes)
