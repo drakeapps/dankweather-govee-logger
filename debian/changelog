@@ -2,7 +2,7 @@ dankweather-govee-monitor (0.1.0-1) unstable; urgency=medium
 
   * Read settings from /etc/dankweather-govee-monitor.conf.
   * Forward the configured provisioning key on every /log POST.
-  * Ship a default conf file and lock it down to root:nogroup 0640.
+  * Ship a default conf file at /etc/dankweather-govee-monitor.conf.
 
  -- James Wilson <james@drakeapps.com>  Sun, 26 Apr 2026 12:00:00 +0000
 

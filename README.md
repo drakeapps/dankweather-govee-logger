@@ -30,28 +30,41 @@ worker quietly waits for it to appear instead of erroring out.
 
 ## Installing
 
-### From the GitHub release (recommended)
-
-Grab the latest `.deb` from the
-[releases page](https://github.com/drakeapps/dankweather-govee-logger/releases/latest)
-and install it with `apt`:
+### One-liner (recommended)
 
 ```bash
-curl -LO https://github.com/drakeapps/dankweather-govee-logger/releases/latest/download/dankweather-govee-monitor.deb
-sudo apt install ./dankweather-govee-monitor.deb
+curl -fsSL https://raw.githubusercontent.com/drakeapps/dankweather-govee-logger/master/install.sh | sh
+```
+
+The script downloads the latest `.deb`, installs it, prompts you to drop
+your provisioning key into `/etc/dankweather-govee-monitor.conf`, then
+enables and starts the service. You'll be prompted for `sudo` along the
+way. Set `provision_key` to the value generated in your
+[dankweather.com](https://dankweather.com) account settings; the other
+fields have sensible defaults (see [Configuration](#configuration) for
+details).
+
+### Manual install
+
+If you'd rather not pipe a script, grab the latest `.deb` from the
+[releases page](https://github.com/drakeapps/dankweather-govee-logger/releases/latest)
+and install it yourself:
+
+```bash
+curl -fL -o /tmp/dankweather-govee-monitor.deb \
+    https://github.com/drakeapps/dankweather-govee-logger/releases/latest/download/dankweather-govee-monitor.deb
+sudo apt install /tmp/dankweather-govee-monitor.deb
+sudoedit /etc/dankweather-govee-monitor.conf
 sudo systemctl enable --now dankweather-govee-monitor
 ```
 
 `apt install ./<file>.deb` pulls in the runtime dependencies
 (`python3-requests`, `goveebttemplogger`) automatically. Plain
-`dpkg -i ./<file>.deb` works too if you'd rather resolve those yourself.
-
-After install, edit `/etc/dankweather-govee-monitor.conf` (see
-[Configuration](#configuration)) and restart:
-
-```bash
-sudo systemctl restart dankweather-govee-monitor
-```
+`sudo dpkg -i /tmp/dankweather-govee-monitor.deb` works too if you'd
+rather resolve those yourself. Downloading to `/tmp` keeps apt's `_apt`
+sandbox user happy; if you put the `.deb` in your home directory, apt
+prints a harmless `Permission denied` Notice and falls back to fetching
+unsandboxed.
 
 The service unit waits for `goveebttemplogger.service` to be up before
 starting and runs as the unprivileged `nobody:nogroup` user.
@@ -101,16 +114,6 @@ The API uses the key to look up the owning user and associate any new
 sensors with that account – no manual claim step required. Subsequent
 readings from a sensor that has already been claimed are unaffected by the
 key.
-
-The key is a credential. The Debian package locks the conf file down to
-`root:nogroup` mode `0640` in its postinst so only `root` and the service
-user (`nobody:nogroup`) can read it. If you install the conf file by hand,
-do the same:
-
-```bash
-sudo install -o root -g nogroup -m 0640 \
-    govee_monitor.conf /etc/dankweather-govee-monitor.conf
-```
 
 ## Logs and troubleshooting
 
