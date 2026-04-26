@@ -115,11 +115,6 @@ sensors with that account – no manual claim step required. Subsequent
 readings from a sensor that has already been claimed are unaffected by the
 key.
 
-The key is low-sensitivity – it only authorizes auto-claiming new sensors
-into your account – so the conf file ships with the standard `root:root`
-mode `0644` and is readable by other users on the system. Treat it as you
-would any other identifier rather than a password.
-
 ## Logs and troubleshooting
 
 ```bash
