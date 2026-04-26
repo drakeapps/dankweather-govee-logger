@@ -28,6 +28,34 @@ YYYY-MM-DD HH:MM:SS  <temperature_C>  <humidity_%>  <battery_%>
 If `goveebttemplogger` is not running yet (the file does not exist), the
 worker quietly waits for it to appear instead of erroring out.
 
+## Installing
+
+### From the GitHub release (recommended)
+
+Grab the latest `.deb` from the
+[releases page](https://github.com/drakeapps/dankweather-govee-logger/releases/latest)
+and install it with `apt`:
+
+```bash
+curl -LO https://github.com/drakeapps/dankweather-govee-logger/releases/latest/download/dankweather-govee-monitor.deb
+sudo apt install ./dankweather-govee-monitor.deb
+sudo systemctl enable --now dankweather-govee-monitor
+```
+
+`apt install ./<file>.deb` pulls in the runtime dependencies
+(`python3-requests`, `goveebttemplogger`) automatically. Plain
+`dpkg -i ./<file>.deb` works too if you'd rather resolve those yourself.
+
+After install, edit `/etc/dankweather-govee-monitor.conf` (see
+[Configuration](#configuration)) and restart:
+
+```bash
+sudo systemctl restart dankweather-govee-monitor
+```
+
+The service unit waits for `goveebttemplogger.service` to be up before
+starting and runs as the unprivileged `nobody:nogroup` user.
+
 ## Configuration
 
 The service reads an INI-style config file. By default it looks at
@@ -80,14 +108,28 @@ key.
 
 The key is a credential. The Debian package locks the conf file down to
 `root:nogroup` mode `0640` in its postinst so only `root` and the service
-user (`nobody:nogroup`) can read it. If you install manually, do the same:
+user (`nobody:nogroup`) can read it. If you install the conf file by hand,
+do the same:
 
 ```bash
 sudo install -o root -g nogroup -m 0640 \
     govee_monitor.conf /etc/dankweather-govee-monitor.conf
 ```
 
-## Running locally
+## Logs and troubleshooting
+
+```bash
+journalctl -u dankweather-govee-monitor -f
+```
+
+Each successful upload prints `[+] Sent <sensor_id>: <timestamp>`; HTTP
+errors print `[!]` lines with the response body. If you see no output at
+all, double-check that `log_dir` matches where `goveebttemplogger` is
+actually writing files.
+
+## Development
+
+### Running locally
 
 ```bash
 python3 -m venv venv
@@ -100,37 +142,20 @@ The `id` sent to the API is the sensor MAC, lifted from the log filename.
 Temperature is in celsius, matching `goveebttemplogger`'s default output and
 what the API expects.
 
-## Running tests
+### Running tests
 
 ```bash
 python3 -m unittest test_govee_monitor.py
 ```
 
-## Installing as a Debian package
+### Building the Debian package from source
+
+If you need an unreleased build (e.g. to test a local change), build the
+`.deb` yourself instead of pulling from GitHub releases:
 
 ```bash
 sudo apt install debhelper-compat dh-python
 dpkg-buildpackage -us -uc
-sudo dpkg -i ../dankweather-govee-monitor_*.deb
+sudo apt install ../dankweather-govee-monitor_*.deb
 sudo systemctl enable --now dankweather-govee-monitor
 ```
-
-After install, edit `/etc/dankweather-govee-monitor.conf` and restart:
-
-```bash
-sudo systemctl restart dankweather-govee-monitor
-```
-
-The service unit waits for `goveebttemplogger.service` to be up before
-starting and runs as the unprivileged `nobody:nogroup` user.
-
-## Logs and troubleshooting
-
-```bash
-journalctl -u dankweather-govee-monitor -f
-```
-
-Each successful upload prints `[+] Sent <sensor_id>: <timestamp>`; HTTP
-errors print `[!]` lines with the response body. If you see no output at
-all, double-check that `log_dir` matches where `goveebttemplogger` is
-actually writing files.
