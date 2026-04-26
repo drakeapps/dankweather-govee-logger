@@ -70,9 +70,6 @@ log_dir = /var/log/goveebttemplogger/
 # DankWeather API endpoint that accepts POST /log requests.
 api_url = https://api.dankweather.com/log
 
-# Account that owns these sensors. Used as the `user` field in the payload.
-username = admin
-
 # Provisioning key tied to your DankWeather account. When set, it is sent
 # alongside every reading so newly seen sensors are auto-associated with
 # your account on first upload. Leave blank to disable.
@@ -92,7 +89,6 @@ set, every reading the monitor sends will carry the key in the request body:
 ```json
 {
   "id": "AABBCCDDEEFF",
-  "user": "admin",
   "datetime": "2024-05-12 19:32:14",
   "temperature": "22.5",
   "humidity": "47",

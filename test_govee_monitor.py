@@ -271,7 +271,6 @@ class TestLoadConfig(unittest.TestCase):
         config = load_config("/nonexistent/path/to/dankweather-govee-monitor.conf")
         self.assertEqual(config["log_dir"], DEFAULT_CONFIG["log_dir"])
         self.assertEqual(config["api_url"], DEFAULT_CONFIG["api_url"])
-        self.assertEqual(config["username"], DEFAULT_CONFIG["username"])
         self.assertIsNone(config["provision_key"])
 
     def test_reads_overrides_from_file(self):
@@ -279,7 +278,6 @@ class TestLoadConfig(unittest.TestCase):
             "[govee_monitor]\n"
             "log_dir = /tmp/custom\n"
             "api_url = http://localhost:8000/log\n"
-            "username = bob\n"
             "provision_key = secret-key\n"
         )
         with tempfile.NamedTemporaryFile("w", suffix=".ini", delete=False) as f:
@@ -289,7 +287,6 @@ class TestLoadConfig(unittest.TestCase):
             config = load_config(path)
             self.assertEqual(config["log_dir"], "/tmp/custom")
             self.assertEqual(config["api_url"], "http://localhost:8000/log")
-            self.assertEqual(config["username"], "bob")
             self.assertEqual(config["provision_key"], "secret-key")
         finally:
             os.unlink(path)
@@ -306,15 +303,14 @@ class TestLoadConfig(unittest.TestCase):
             os.unlink(path)
 
     def test_partial_file_keeps_defaults_for_missing_keys(self):
-        body = "[govee_monitor]\nusername = alice\n"
+        body = "[govee_monitor]\napi_url = http://localhost:8000/log\n"
         with tempfile.NamedTemporaryFile("w", suffix=".ini", delete=False) as f:
             f.write(body)
             path = f.name
         try:
             config = load_config(path)
-            self.assertEqual(config["username"], "alice")
+            self.assertEqual(config["api_url"], "http://localhost:8000/log")
             self.assertEqual(config["log_dir"], DEFAULT_CONFIG["log_dir"])
-            self.assertEqual(config["api_url"], DEFAULT_CONFIG["api_url"])
         finally:
             os.unlink(path)
 

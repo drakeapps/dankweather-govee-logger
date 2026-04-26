@@ -17,7 +17,6 @@ DEFAULT_CONFIG_PATH = "/etc/dankweather-govee-monitor.conf"
 DEFAULT_CONFIG = {
     "log_dir": "/var/log/goveebttemplogger/",
     "api_url": "https://api.dankweather.com/log",
-    "username": "admin",
     "provision_key": "",
 }
 
@@ -40,16 +39,14 @@ def load_config(path=DEFAULT_CONFIG_PATH):
     return {
         "log_dir": section.get("log_dir"),
         "api_url": section.get("api_url"),
-        "username": section.get("username"),
         "provision_key": provision_key,
     }
 
 
 class GoveeMonitor:
-    def __init__(self, log_dir, api_url, username="admin", provision_key=None):
+    def __init__(self, log_dir, api_url, provision_key=None):
         self.log_dir = log_dir
         self.api_url = api_url
-        self.username = username
         self.provision_key = provision_key
         self.check_interval = 1.0  # Sleep at end of loop
         self.retry_interval = 1.0  # Sleep on error/missing file
@@ -75,7 +72,6 @@ class GoveeMonitor:
         """Sends a parsed record to the API."""
         payload = {
             "id": sensor_id,
-            "user": self.username,
             "datetime": f"{record['date']} {record['time']}",
             "temperature": record["temperature"],
             "humidity": record["humidity"],
