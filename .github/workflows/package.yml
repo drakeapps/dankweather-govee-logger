@@ -26,10 +26,21 @@ jobs:
         run: |
           # The committed debian/changelog is just a starting point; the
           # release tag is the source of truth for build-time versioning.
-          # Strip a leading "v" so tags like v0.2.0 and 0.2.0 both work.
+          #
+          # Tag conventions (leading `v` is optional in either case):
+          #   v0.2.0    -> Debian version 0.2.0-1  (revision defaults to 1)
+          #   v0.2.0-2  -> Debian version 0.2.0-2  (explicit Debian revision)
+          #
+          # Only a trailing `-<digits>` is treated as a Debian revision, so
+          # tags like v1.2.3-rc1 still pass through cleanly as upstream.
           TAG="${{ github.event.release.tag_name }}"
-          VERSION="${TAG#v}"
-          dch --newversion "${VERSION}-1" \
+          RAW="${TAG#v}"
+          if [[ "$RAW" =~ -[0-9]+$ ]]; then
+            VERSION="$RAW"
+          else
+            VERSION="${RAW}-1"
+          fi
+          dch --newversion "$VERSION" \
               --distribution unstable \
               --force-distribution \
               "Release ${VERSION}"
