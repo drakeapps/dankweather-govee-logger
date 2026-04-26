@@ -46,12 +46,18 @@ sudo systemctl enable --now dankweather-govee-monitor
 (`python3-requests`, `goveebttemplogger`) automatically. Plain
 `dpkg -i ./<file>.deb` works too if you'd rather resolve those yourself.
 
-After install, edit `/etc/dankweather-govee-monitor.conf` (see
-[Configuration](#configuration)) and restart:
+After install, paste your provisioning key into
+`/etc/dankweather-govee-monitor.conf` and restart the service:
 
 ```bash
+sudoedit /etc/dankweather-govee-monitor.conf
 sudo systemctl restart dankweather-govee-monitor
 ```
+
+Set `provision_key` to the value generated in your
+[dankweather.com](https://dankweather.com) account settings; the other fields
+have sensible defaults. See [Configuration](#configuration) for the full set
+of options.
 
 The service unit waits for `goveebttemplogger.service` to be up before
 starting and runs as the unprivileged `nobody:nogroup` user.
@@ -102,15 +108,10 @@ sensors with that account – no manual claim step required. Subsequent
 readings from a sensor that has already been claimed are unaffected by the
 key.
 
-The key is a credential. The Debian package locks the conf file down to
-`root:nogroup` mode `0640` in its postinst so only `root` and the service
-user (`nobody:nogroup`) can read it. If you install the conf file by hand,
-do the same:
-
-```bash
-sudo install -o root -g nogroup -m 0640 \
-    govee_monitor.conf /etc/dankweather-govee-monitor.conf
-```
+The key is low-sensitivity – it only authorizes auto-claiming new sensors
+into your account – so the conf file ships with the standard `root:root`
+mode `0644` and is readable by other users on the system. Treat it as you
+would any other identifier rather than a password.
 
 ## Logs and troubleshooting
 
