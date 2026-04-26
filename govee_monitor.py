@@ -1,19 +1,53 @@
 #!/usr/bin/env python3
 
-import os
-import time
+import argparse
+import configparser
 import glob
+import os
 import re
-import requests
 import threading
+import time
 from datetime import datetime
+
+import requests
+
+
+DEFAULT_CONFIG_PATH = "/etc/dankweather-govee-monitor.conf"
+
+DEFAULT_CONFIG = {
+    "log_dir": "/var/log/goveebttemplogger/",
+    "api_url": "https://api.dankweather.com/log",
+    "provision_key": "",
+}
+
+
+def load_config(path=DEFAULT_CONFIG_PATH):
+    """Load settings from an INI-style config file.
+
+    The file should contain a [govee_monitor] section. Missing keys fall back
+    to built-in defaults; a missing file is tolerated so the service starts
+    with safe defaults and no provisioning key.
+    """
+    parser = configparser.ConfigParser()
+    parser.read_dict({"govee_monitor": DEFAULT_CONFIG})
+
+    if path and os.path.exists(path):
+        parser.read(path)
+
+    section = parser["govee_monitor"]
+    provision_key = section.get("provision_key", "").strip() or None
+    return {
+        "log_dir": section.get("log_dir"),
+        "api_url": section.get("api_url"),
+        "provision_key": provision_key,
+    }
 
 
 class GoveeMonitor:
-    def __init__(self, log_dir, api_url, username="admin"):
+    def __init__(self, log_dir, api_url, provision_key=None):
         self.log_dir = log_dir
         self.api_url = api_url
-        self.username = username
+        self.provision_key = provision_key
         self.check_interval = 1.0  # Sleep at end of loop
         self.retry_interval = 1.0  # Sleep on error/missing file
         self.scan_interval = 60.0
@@ -38,12 +72,13 @@ class GoveeMonitor:
         """Sends a parsed record to the API."""
         payload = {
             "id": sensor_id,
-            "user": self.username,
             "datetime": f"{record['date']} {record['time']}",
             "temperature": record["temperature"],
             "humidity": record["humidity"],
             "battery": record["battery"],
         }
+        if self.provision_key:
+            payload["provision_key"] = self.provision_key
 
         try:
             response = requests.post(
@@ -165,12 +200,20 @@ class GoveeMonitor:
         self.stop_event.set()
 
 
-if __name__ == "__main__":
-    config = {
-        "log_dir": "/var/log/goveebttemplogger/",
-        "api_url": "https://api.dankweather.com/log",
-        "username": "admin",
-    }
+def main():
+    parser = argparse.ArgumentParser(description="DankWeather Govee Log Monitor")
+    parser.add_argument(
+        "-c",
+        "--config",
+        default=os.environ.get("GOVEE_MONITOR_CONFIG", DEFAULT_CONFIG_PATH),
+        help=f"Path to INI config file (default: {DEFAULT_CONFIG_PATH})",
+    )
+    args = parser.parse_args()
 
+    config = load_config(args.config)
     monitor = GoveeMonitor(**config)
     monitor.start()
+
+
+if __name__ == "__main__":
+    main()

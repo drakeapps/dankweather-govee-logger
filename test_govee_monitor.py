@@ -1,10 +1,10 @@
-import unittest
-from unittest.mock import MagicMock, patch, mock_open
 import os
-import threading
-import time
+import tempfile
+import unittest
 from datetime import datetime
-from govee_monitor import GoveeMonitor
+from unittest.mock import MagicMock, mock_open, patch
+
+from govee_monitor import DEFAULT_CONFIG, GoveeMonitor, load_config
 
 
 class TestGoveeMonitor(unittest.TestCase):
@@ -78,6 +78,37 @@ class TestGoveeMonitor(unittest.TestCase):
         }
         success = self.monitor.send_record("SENS1", record)
         self.assertFalse(success)
+
+    @patch("requests.post")
+    def test_send_record_includes_provision_key_when_set(self, mock_post):
+        mock_post.return_value.status_code = 200
+        monitor = GoveeMonitor(
+            self.log_dir, self.api_url, provision_key="prov-abc-123"
+        )
+        record = {
+            "date": "2023-01-01",
+            "time": "12:00",
+            "temperature": "20",
+            "humidity": "50",
+            "battery": "100",
+        }
+        monitor.send_record("SENS1", record)
+        args, kwargs = mock_post.call_args
+        self.assertEqual(kwargs["json"]["provision_key"], "prov-abc-123")
+
+    @patch("requests.post")
+    def test_send_record_omits_provision_key_when_unset(self, mock_post):
+        mock_post.return_value.status_code = 200
+        record = {
+            "date": "2023-01-01",
+            "time": "12:00",
+            "temperature": "20",
+            "humidity": "50",
+            "battery": "100",
+        }
+        self.monitor.send_record("SENS1", record)
+        args, kwargs = mock_post.call_args
+        self.assertNotIn("provision_key", kwargs["json"])
 
     @patch("glob.glob")
     def test_scan_sensors(self, mock_glob):
@@ -232,6 +263,56 @@ class TestGoveeMonitor(unittest.TestCase):
         self.monitor.monitor_loop(sensor_id)
 
         self.assertTrue(mock_file.return_value.close.called)
+
+
+class TestLoadConfig(unittest.TestCase):
+
+    def test_returns_defaults_when_file_missing(self):
+        config = load_config("/nonexistent/path/to/dankweather-govee-monitor.conf")
+        self.assertEqual(config["log_dir"], DEFAULT_CONFIG["log_dir"])
+        self.assertEqual(config["api_url"], DEFAULT_CONFIG["api_url"])
+        self.assertIsNone(config["provision_key"])
+
+    def test_reads_overrides_from_file(self):
+        body = (
+            "[govee_monitor]\n"
+            "log_dir = /tmp/custom\n"
+            "api_url = http://localhost:8000/log\n"
+            "provision_key = secret-key\n"
+        )
+        with tempfile.NamedTemporaryFile("w", suffix=".ini", delete=False) as f:
+            f.write(body)
+            path = f.name
+        try:
+            config = load_config(path)
+            self.assertEqual(config["log_dir"], "/tmp/custom")
+            self.assertEqual(config["api_url"], "http://localhost:8000/log")
+            self.assertEqual(config["provision_key"], "secret-key")
+        finally:
+            os.unlink(path)
+
+    def test_blank_provision_key_becomes_none(self):
+        body = "[govee_monitor]\nprovision_key = \n"
+        with tempfile.NamedTemporaryFile("w", suffix=".ini", delete=False) as f:
+            f.write(body)
+            path = f.name
+        try:
+            config = load_config(path)
+            self.assertIsNone(config["provision_key"])
+        finally:
+            os.unlink(path)
+
+    def test_partial_file_keeps_defaults_for_missing_keys(self):
+        body = "[govee_monitor]\napi_url = http://localhost:8000/log\n"
+        with tempfile.NamedTemporaryFile("w", suffix=".ini", delete=False) as f:
+            f.write(body)
+            path = f.name
+        try:
+            config = load_config(path)
+            self.assertEqual(config["api_url"], "http://localhost:8000/log")
+            self.assertEqual(config["log_dir"], DEFAULT_CONFIG["log_dir"])
+        finally:
+            os.unlink(path)
 
 
 if __name__ == "__main__":

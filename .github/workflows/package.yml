@@ -19,13 +19,45 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential debhelper devscripts dh-python
 
+      - name: Set Package Version From Release Tag
+        env:
+          DEBEMAIL: ci@drakeapps.com
+          DEBFULLNAME: DankWeather CI
+        run: |
+          # The committed debian/changelog is just a starting point; the
+          # release tag is the source of truth for build-time versioning.
+          #
+          # Tag conventions (leading `v` is optional in either case):
+          #   v0.2.0    -> Debian version 0.2.0-1  (revision defaults to 1)
+          #   v0.2.0-2  -> Debian version 0.2.0-2  (explicit Debian revision)
+          #
+          # Only a trailing `-<digits>` is treated as a Debian revision, so
+          # tags like v1.2.3-rc1 still pass through cleanly as upstream.
+          TAG="${{ github.event.release.tag_name }}"
+          RAW="${TAG#v}"
+          if [[ "$RAW" =~ -[0-9]+$ ]]; then
+            VERSION="$RAW"
+          else
+            VERSION="${RAW}-1"
+          fi
+          dch --newversion "$VERSION" \
+              --distribution unstable \
+              --force-distribution \
+              "Release ${VERSION}"
+          head -1 debian/changelog
+
       - name: Build Package
         run: |
           # Build the package (unsigned source and changes)
           dpkg-buildpackage -us -uc -b
+          # Publish a stable, version-less filename alongside the versioned
+          # one so README links can use releases/latest/download/<name>.deb.
+          cp ../dankweather-govee-monitor_*_all.deb ../dankweather-govee-monitor.deb
 
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: ../dankweather-govee-monitor_*_all.deb
+          files: |
+            ../dankweather-govee-monitor_*_all.deb
+            ../dankweather-govee-monitor.deb
